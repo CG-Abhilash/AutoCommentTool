@@ -69,20 +69,30 @@ void AutoHeader::read_source_file(const QString& file_name, QString output_path)
         {
             if(line_number == 1 && !is_file_header_present(line))
             {
-                out<< "/*! @File "<<file_name_string.trimmed()<<"\n";
-                out<< " *  @brief "<<"\n";
-                out<< " *  Description : "<<"\n";
+                out<< "/*! @file "<<file_name_string.trimmed()<<"\n";
+                out<< " *  @brief This file is responsible to "<<"\n";
                 out<< " */"<<"\n";
                 out<<"\n";
             }
 
+            if(line.contains(":"))
+            {
+                if(line.contains("public:") || line.contains("protected:")  ||
+                        line.contains("private:") || line.contains("signals:") ||
+                        line.contains("public slots:") || line.contains("protected slots:") ||
+                        line.contains("private slots:"))
+                {
+                    QString input_line = line;
+                    access_specifier = input_line.remove(":").trimmed();
+                }
+            }
             if(is_class(line, class_name))
             {
                 if(!previous_line.contains("*/"))
                 {
                     out << "\n";
                     out<< "/*! @"<<line.trimmed()<<"\n";
-                    out<< " *  Description : "<<"\n";
+                    out<< " *  @brief This class is responsible to "<<"\n";
                     out<< " */"<<"\n";
                     out << line << "\n";
                 }
@@ -96,8 +106,8 @@ void AutoHeader::read_source_file(const QString& file_name, QString output_path)
                 {
                     out << "\n";
                     out<< "    /*! @fn "<<line.trimmed()<<"\n";
-                    out<< "     * @brief "<<"\n";
-                    out<< "     * @param "<< get_parameter(line.trimmed())<<"\n";
+                    add_funtion_brief(out);
+                    get_parameter(line.trimmed(), out);
                     out<< "     * @return "<<get_return_type(line.trimmed())<<"\n";
                     out<< "     */"<<"\n";
                     out << line << "\n";
@@ -133,9 +143,16 @@ bool AutoHeader::is_function(const QString &line)
 
 bool AutoHeader::is_class(QString line, QString& class_name)
 {
+    qDebug()<<" is_class line = "<<line;
     if(line.startsWith("class ") && !line.contains(";"))
     {
         class_name = line.remove("class ").remove("final").trimmed();
+        if(class_name.contains(":"))
+        {
+            QStringList class_list = class_name.split(":");
+
+            class_name = class_list.at(0).trimmed();
+        }
         return true;
     }
 
@@ -167,63 +184,89 @@ QString AutoHeader::get_return_type(const QString &line)
             final_return_string.append(" ");
         }
     }
-    return final_return_string;
+
+    return final_return_string.trimmed();
 }
 
-QString AutoHeader::get_parameter(const QString &line)
+void AutoHeader::get_parameter(const QString &line, QTextStream& out)
 {
-    QStringList return_type_list = line.split("(");
-    QString final_parameter = return_type_list.at(1);
-    return_type_list.clear();
-    return_type_list = final_parameter.split(")");
-    final_parameter = return_type_list.at(0);
+    QStringList multiple_parameter_list = line.split("(");
+    QString final_parameter = multiple_parameter_list.at(1);
+    multiple_parameter_list.clear();
+    multiple_parameter_list = final_parameter.split(")");
 
-    return_type_list.clear();
-    return_type_list = final_parameter.split(",");
+    final_parameter = multiple_parameter_list.at(0);
+
+    if(final_parameter.isEmpty())
+    {
+        return;
+    }
+    multiple_parameter_list.clear();
+    multiple_parameter_list = final_parameter.split(",");
     final_parameter.clear();
 
-    for(int i = 0; i < return_type_list.size(); i++)
+    for(int i = 0; i < multiple_parameter_list.size(); i++)
     {
-        QString parameter = return_type_list.at(i);
+        QString parameter = multiple_parameter_list.at(i);
         QStringList parameter_type_list = parameter.split(" ");
 
         if(!parameter.contains("="))
         {
-
-        for(int j = 0; j < parameter_type_list.size(); j++)
-        {
-            if(j < (parameter_type_list.size() - 1))
-            {
-                final_parameter.append(parameter_type_list.at(j));
-                final_parameter.append(" ");
-            }
-
-        }
+            final_parameter = parameter_type_list.at(parameter_type_list.size() - 1);
+            final_parameter.remove("*").remove("&");
+            QString input_output = get_input_output_parameter(parameter);
+            out<< "     * @param "<<input_output<< final_parameter<<"\n";
         }
         else {
-
             QStringList equal_string_list = parameter.split("=");
             QString before_equal = equal_string_list.at(0);
-
-            QStringList space_list = before_equal.trimmed().split(" ");
-            for(int k = 0; k < space_list.size(); k++)
-            {
-
-                if(k < (space_list.size() - 1))
-                {
-                    final_parameter.append(space_list.at(k));
-                    final_parameter.append(" ");
-                }
-            }
+            before_equal = before_equal.trimmed();
+            QStringList parameter_type_list_2 = before_equal.split(" ");
+            final_parameter = parameter_type_list_2.at(parameter_type_list_2.size() - 1);
+            QString input_output = get_input_output_parameter(before_equal);
+            out<< "     * @param "<<input_output<< final_parameter<<"\n";
         }
-
-        if(i < (return_type_list.size() - 1))
-        {
-            final_parameter.append(", ");
-        }
-
     }
-    return final_parameter;
+}
+
+void AutoHeader::add_funtion_brief(QTextStream& out)
+{
+
+    if(access_specifier.contains("public") || access_specifier.contains("protected") || access_specifier.contains("private"))
+    {
+        out<< "     * @brief This "<<access_specifier<<" function is responsible to "<<"\n";
+    }
+    else if(access_specifier.contains("slots"))
+    {
+        QString slot_type = access_specifier;
+        slot_type.remove("slots");
+        out<< "     * @brief This "<<slot_type<<" slot is responsible to "<<"\n";
+    }
+    else if(access_specifier.contains("signals"))
+    {
+        out<< "     * @brief This signal is responsible to "<<"\n";
+    }
+    else
+    {
+        out<< "     * @brief "<<"\n";
+    }
+
+}
+
+QString AutoHeader::get_input_output_parameter(const QString& line)
+{
+    if(line.contains("const"))
+    {
+        return "[in] ";
+    }
+    if(!line.contains("&") && !line.contains("*"))
+    {
+        return "[in] ";
+    }
+    else
+    {
+        return "[out] ";
+    }
 }
 
 void AutoHeader::OnSourceBrowseButtonClicked()

@@ -2,6 +2,7 @@
 #define AUTOHEADER_H
 
 #include <QWidget>
+#include <QTextStream>
 
 namespace Ui {
 class AutoHeader;
@@ -29,6 +30,7 @@ private:
     QString destination_dir_name;
     bool is_source_file_selected;
     bool is_destination_path_selected;
+    QString access_specifier;
 
     void read_source_file(const QString& file_name, QString output_file_name);
     bool is_function(const QString& line);
@@ -36,7 +38,9 @@ private:
     bool is_file_header_present(const QString& line);
 
     QString get_return_type(const QString& line);
-    QString get_parameter(const QString &line);
+    void get_parameter(const QString& line, QTextStream& out);
+    void add_funtion_brief(QTextStream& out);
+    QString get_input_output_parameter(const QString& line);
 
 };
 
