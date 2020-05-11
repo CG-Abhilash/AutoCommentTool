@@ -26,6 +26,14 @@ private slots:
 
     void on_clangBrowswePushButton_released();
 
+    void on_add_comments_check_box__stateChanged(int arg1);
+
+    void on_apply_clang_check_box__stateChanged(int arg1);
+
+    void on_auto_brief_check_box__stateChanged(int arg1);
+
+    void on_start_button__released();
+
 private:
     Ui::AutoHeader *ui;
     QString source_file_directory;
@@ -35,6 +43,9 @@ private:
     bool is_destination_path_selected;
     bool is_clang_file_selected;
     QString access_specifier;
+    bool is_add_comments_check_box_checked_;
+    bool is_apply_clang_check_box_checked_;
+    bool is_auto_brief_check_box_checked_;
 
     void read_source_file(const QString& file_name, QString output_file_name);
     bool is_function(const QString& line);
@@ -43,8 +54,14 @@ private:
 
     QString get_return_type(const QString& line);
     void add_parameter(const QString& line, QTextStream& out);
-    void add_funtion_brief(QTextStream& out);
+    void add_funtion_brief(QTextStream& out, bool is_auto_brief_check_box_checked, const QString& function_name);
+    void add_class_brief(QTextStream& out, bool is_auto_brief_check_box_checked, const QString& class_name);
+    void add_file_brief(QTextStream& out, bool is_auto_brief_check_box_checked, const QString& file_name);
+
     QString get_input_output_parameter(const QString& line, const QString& function_name);
+    QString get_function_name(const QString& line);
+    QString get_function_brief_string(const QString& function_name);
+    QString get_class_brief_string(const QString& class_name);
 
 };
 

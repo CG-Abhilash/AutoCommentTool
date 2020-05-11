@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <iostream>
 #include <QString>
+#include <QChar>
 #include <QFileDialog>
 #include <QMessageBox>
 
@@ -12,16 +13,19 @@ AutoHeader::AutoHeader(QWidget *parent) :
     ui(new Ui::AutoHeader),
     is_source_file_selected(false),
     is_destination_path_selected(false),
-    is_clang_file_selected(false)
+    is_clang_file_selected(false),
+    is_add_comments_check_box_checked_(true),
+    is_apply_clang_check_box_checked_(true),
+    is_auto_brief_check_box_checked_(true)
 {
     ui->setupUi(this);
-    this->setFixedSize(600,500);
+    this->setFixedWidth(600);
 
+    ui->add_comments_check_box_->setChecked(true);
+    ui->apply_clang_check_box_->setChecked(true);
+    ui->auto_brief_check_box_->setChecked(true);
     connect(ui->SourceBrowseButton, SIGNAL(clicked()), this, SLOT(OnSourceBrowseButtonClicked()));
     connect(ui->DestinationDirectoryButton, SIGNAL(clicked()), this, SLOT(OnDestinationBrowseButtonClicked()));
-    connect(ui->AddCommetsButton, SIGNAL(clicked()), this, SLOT(OnAddCommetsButtonClicked()));
-    connect(ui->ApplyCLangButton, SIGNAL(clicked()), this, SLOT(OnApplyCLangButtonClicked()));
-    connect(ui->ApplyBothButton, SIGNAL(clicked()), this, SLOT(OnApplyBothButtonClicked()));
 }
 
 AutoHeader::~AutoHeader()
@@ -65,13 +69,12 @@ void AutoHeader::read_source_file(const QString& file_name, QString output_path)
 
         QTextStream out(&output_file);
 
-
         if(!line.trimmed().isEmpty())
         {
             if(line_number == 1 && !is_file_header_present(line))
             {
                 out<< "/*! @file "<<file_name_string.trimmed()<<"\n";
-                out<< " *  @brief This file is responsible to "<<"\n";
+                add_file_brief(out, is_auto_brief_check_box_checked_, file_name_string);
                 out<< " */"<<"\n";
                 out<<"\n";
             }
@@ -93,7 +96,7 @@ void AutoHeader::read_source_file(const QString& file_name, QString output_path)
                 {
                     out << "\n";
                     out<< "/*! @"<<line.trimmed()<<"\n";
-                    out<< " *  @brief This class is responsible to "<<"\n";
+                    add_class_brief(out, is_auto_brief_check_box_checked_, class_name);
                     out<< " */"<<"\n";
                     out << line << "\n";
                 }
@@ -107,7 +110,7 @@ void AutoHeader::read_source_file(const QString& file_name, QString output_path)
                 {
                     out << "\n";
                     out<< "    /*! @fn "<<line.trimmed()<<"\n";
-                    add_funtion_brief(out);
+                    add_funtion_brief(out, is_auto_brief_check_box_checked_, get_function_name(line.trimmed()));
                     add_parameter(line.trimmed(), out);
                     out<< "     * @return "<<get_return_type(line.trimmed())<<"\n";
                     out<< "     */"<<"\n";
@@ -230,33 +233,87 @@ void AutoHeader::add_parameter(const QString &line, QTextStream& out)
             QStringList parameter_type_list_2 = before_equal.split(" ");
             final_parameter = parameter_type_list_2.at(parameter_type_list_2.size() - 1);
             final_parameter.remove("*").remove("&");
+            QString input_output = get_input_output_parameter(parameter, function_name);
             out<< "     * @param "<<input_output<< final_parameter<<"\n";
         }
     }
 }
 
-void AutoHeader::add_funtion_brief(QTextStream& out)
+void AutoHeader::add_funtion_brief(QTextStream& out, bool is_auto_brief_check_box_checked, const QString& function_name)
 {
+    if(!is_auto_brief_check_box_checked)
+    {
+        if(access_specifier.contains("slots"))
+        {
+            QString slot_type = access_specifier;
+            slot_type.remove("slots");
+            out<< "     * @brief This "<<slot_type<<" slot is responsible to "<<"\n";
+        }
+        else if(access_specifier.contains("public") || access_specifier.contains("protected") || access_specifier.contains("private"))
+        {
+            out<< "     * @brief This "<<access_specifier<<" function is responsible to "<<"\n";
+        }
 
-    if(access_specifier.contains("public") || access_specifier.contains("protected") || access_specifier.contains("private"))
-    {
-        out<< "     * @brief This "<<access_specifier<<" function is responsible to "<<"\n";
-    }
-    else if(access_specifier.contains("slots"))
-    {
-        QString slot_type = access_specifier;
-        slot_type.remove("slots");
-        out<< "     * @brief This "<<slot_type<<" slot is responsible to "<<"\n";
-    }
-    else if(access_specifier.contains("signals"))
-    {
-        out<< "     * @brief This signal is responsible to "<<"\n";
+        else if(access_specifier.contains("signals"))
+        {
+            out<< "     * @brief This signal is responsible to "<<"\n";
+        }
+        else
+        {
+            out<< "     * @brief "<<"\n";
+        }
     }
     else
     {
-        out<< "     * @brief "<<"\n";
+
+        QString function_brief = get_function_brief_string(function_name);
+
+        if(access_specifier.contains("slots"))
+        {
+            QString slot_type = access_specifier;
+            slot_type.remove("slots");
+            out<< "     * @brief This "<<slot_type<<" slot is responsible to "<<function_brief<<"\n";
+        }
+        else if(access_specifier.contains("public") || access_specifier.contains("protected") || access_specifier.contains("private"))
+        {
+            out<< "     * @brief This "<<access_specifier<<" function is responsible to "<<function_brief<<"\n";
+        }
+        else if(access_specifier.contains("signals"))
+        {
+            out<< "     * @brief This signal is responsible to "<<function_brief<<"\n";
+        }
+        else
+        {
+            out<< "     * @brief "<<"\n";
+        }
     }
 
+}
+
+void AutoHeader::add_class_brief(QTextStream& out, bool is_auto_brief_check_box_checked, const QString& class_name)
+{
+    if(!is_auto_brief_check_box_checked)
+    {
+        out<< " *  @brief This class is responsible to "<<"\n";
+    }
+    else
+    {
+        QString class_brief = get_class_brief_string(class_name);
+        out<< " *  @brief This class is responsible to "<<class_brief<<"\n";
+    }
+}
+
+void AutoHeader::add_file_brief(QTextStream& out, bool is_auto_brief_check_box_checked, const QString& file_name)
+{
+    if(!is_auto_brief_check_box_checked)
+    {
+        out<< " *  @brief This file is responsible to "<<"\n";
+    }
+    else
+    {
+        QString file_brief = get_class_brief_string(file_name);
+        out<< " *  @brief This file is responsible to "<<file_brief<<"\n";
+    }
 }
 
 QString AutoHeader::get_input_output_parameter(const QString& line, const QString& function_name)
@@ -277,6 +334,77 @@ QString AutoHeader::get_input_output_parameter(const QString& line, const QStrin
         }
         return "[out] ";
     }
+}
+
+QString AutoHeader::get_function_name(const QString &line)
+{
+    QStringList multiple_parameter_list = line.split("(");
+    QString function_name_with_return = multiple_parameter_list.at(0);
+    QStringList function_name_list = function_name_with_return.split(" ");
+    QString function_name = function_name_list.at(function_name_list.size() - 1);
+    return function_name;
+}
+
+QString AutoHeader::get_function_brief_string(const QString& function_name)
+{
+    QString final_brief;
+
+    for (int index = 0; index < function_name.size(); ++index)
+    {
+        QString string_data;
+        if(function_name.at(index).isUpper())
+        {
+            string_data.append(" ");
+        }
+        string_data.append(function_name.at(index).toLower());
+
+        if(string_data == "_")
+        {
+            string_data = " ";
+        }
+
+        final_brief.append(string_data);
+    }
+
+    if(final_brief.contains("slot") || final_brief.contains("Slot"))
+    {
+        final_brief.remove("slot");
+        final_brief.remove("Slot");
+    }
+
+    final_brief.replace("init", "initialize");
+    final_brief.append(".");
+
+    return final_brief;
+}
+
+QString AutoHeader::get_class_brief_string(const QString& class_name)
+{
+    QString final_brief;
+
+    for (int index = 0; index < class_name.size(); ++index)
+    {
+        QString string_data;
+        if(class_name.at(index).isUpper())
+        {
+            string_data.append(" ");
+        }
+        string_data.append(class_name.at(index).toLower());
+
+        if(string_data == "_")
+        {
+            string_data = " ";
+        }
+
+        final_brief.append(string_data);
+    }
+
+    final_brief.replace("controller", "control");
+    final_brief.replace(".h", "");
+    final_brief.replace(".cpp", "");
+    final_brief.append(".");
+
+    return final_brief;
 }
 
 void AutoHeader::OnSourceBrowseButtonClicked()
@@ -373,5 +501,139 @@ void AutoHeader::on_clangBrowswePushButton_released()
     if(!clang_format_file_name.isEmpty())
     {
         is_clang_file_selected = true;
+    }
+}
+
+void AutoHeader::on_add_comments_check_box__stateChanged(int arg1)
+{
+    qDebug()<<"on_add_comments_check_box__stateChanged = "<<arg1;
+
+    if(arg1 == 2)
+    {
+        is_add_comments_check_box_checked_ = true;
+    }
+    else
+    {
+        is_add_comments_check_box_checked_ = false;
+    }
+}
+
+void AutoHeader::on_apply_clang_check_box__stateChanged(int arg1)
+{
+    qDebug()<<"on_apply_clang_check_box__stateChanged = "<<arg1;
+
+    if(arg1 == 2)
+    {
+        is_apply_clang_check_box_checked_ = true;
+    }
+    else
+    {
+        is_apply_clang_check_box_checked_ = false;
+    }
+}
+
+void AutoHeader::on_auto_brief_check_box__stateChanged(int arg1)
+{
+    qDebug()<<"on_auto_brief_check_box__stateChanged = "<<arg1;
+
+    if(arg1 == 2)
+    {
+        is_auto_brief_check_box_checked_ = true;
+    }
+    else
+    {
+        is_auto_brief_check_box_checked_ = false;
+    }
+}
+
+void AutoHeader::on_start_button__released()
+{
+    if(is_add_comments_check_box_checked_ && is_apply_clang_check_box_checked_)
+    {
+        if(is_source_file_selected && is_destination_path_selected && is_clang_file_selected)
+        {
+            OnAddCommetsButtonClicked();
+            OnApplyCLangButtonClicked();
+        }
+        else
+        {
+            if(!is_source_file_selected && is_destination_path_selected && is_clang_file_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly select source files path to add comments.");
+                msgBox.exec();
+            }
+            else if(!is_source_file_selected && !is_destination_path_selected && is_clang_file_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly select source files path and destination path.");
+                msgBox.exec();
+            }
+            else if(!is_source_file_selected && !is_destination_path_selected && !is_clang_file_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly select source files path, destination path and .clang-format file.");
+                msgBox.exec();
+            }
+            else if(is_source_file_selected && !is_destination_path_selected && !is_clang_file_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly select destination path and .clang-format file.");
+                msgBox.exec();
+            }
+            else if(is_source_file_selected && !is_destination_path_selected && is_clang_file_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly destination path.");
+                msgBox.exec();
+            }
+            else if(is_source_file_selected && is_destination_path_selected && !is_clang_file_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly select .clanf-format file.");
+                msgBox.exec();
+            }
+        }
+    }
+    else if(!is_add_comments_check_box_checked_ && is_apply_clang_check_box_checked_)
+    {
+        if(is_clang_file_selected)
+        {
+            OnApplyCLangButtonClicked();
+        }
+        else
+        {
+            QMessageBox msgBox;
+            msgBox.setText("Kindly select .clanf-format file.");
+            msgBox.exec();
+        }
+    }
+    else if(is_add_comments_check_box_checked_ && !is_apply_clang_check_box_checked_)
+    {
+        if(is_source_file_selected)
+        {
+            OnAddCommetsButtonClicked();
+        }
+        else
+        {
+            if(!is_source_file_selected && is_destination_path_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly select source files path to add comments.");
+                msgBox.exec();
+            }
+            else if(!is_source_file_selected && !is_destination_path_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly select source files path and destination path.");
+                msgBox.exec();
+            }
+            else if(is_source_file_selected && !is_destination_path_selected)
+            {
+                QMessageBox msgBox;
+                msgBox.setText("Kindly select destination path.");
+                msgBox.exec();
+            }
+        }
     }
 }
