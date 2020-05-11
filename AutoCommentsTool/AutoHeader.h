@@ -22,7 +22,6 @@ private slots:
     void OnDestinationBrowseButtonClicked();
     void OnAddCommetsButtonClicked();
     void OnApplyCLangButtonClicked();
-    void OnApplyBothButtonClicked();
 
     void on_clangBrowswePushButton_released();
 

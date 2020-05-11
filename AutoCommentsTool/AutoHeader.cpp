@@ -471,26 +471,18 @@ void AutoHeader::OnApplyCLangButtonClicked()
     else
     {
         QString c_lang_system_command = "find ";
-        c_lang_system_command.append(destination_dir_name).append(" -iname '*.h' -o -iname '*.cpp' | xargs clang-format-6.0 -i -style=file");
-
-        QStringList x_lang_file_path_list = source_file_directory.split("/");
+        c_lang_system_command.append(source_file_directory).append(" -iname '*.h' -o -iname '*.cpp' | xargs clang-format-6.0 -i -style=file");
 
         QString copy_file_command;
 
-        copy_file_command.append("cp ").append(clang_format_file_name).append(" ").append(destination_dir_name);
+        copy_file_command.append("cp ").append(clang_format_file_name).append(" ").append(source_file_directory);
         system(copy_file_command.toStdString().c_str());
         QString remove_file_command;
-        remove_file_command.append("rm ").append(destination_dir_name).append("/.clang-format");
+        remove_file_command.append("rm ").append(source_file_directory).append("/.clang-format");
 
         system(c_lang_system_command.toStdString().c_str());
         system(remove_file_command.toStdString().c_str());
     }
-}
-
-void AutoHeader::OnApplyBothButtonClicked()
-{
-    OnAddCommetsButtonClicked();
-    OnApplyCLangButtonClicked();
 }
 
 void AutoHeader::on_clangBrowswePushButton_released()
@@ -552,8 +544,8 @@ void AutoHeader::on_start_button__released()
     {
         if(is_source_file_selected && is_destination_path_selected && is_clang_file_selected)
         {
-            OnAddCommetsButtonClicked();
             OnApplyCLangButtonClicked();
+            OnAddCommetsButtonClicked();
         }
         else
         {
