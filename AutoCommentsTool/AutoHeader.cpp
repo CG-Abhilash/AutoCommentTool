@@ -11,7 +11,8 @@ AutoHeader::AutoHeader(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::AutoHeader),
     is_source_file_selected(false),
-    is_destination_path_selected(false)
+    is_destination_path_selected(false),
+    is_clang_file_selected(false)
 {
     ui->setupUi(this);
     this->setFixedSize(600,500);
@@ -107,7 +108,7 @@ void AutoHeader::read_source_file(const QString& file_name, QString output_path)
                     out << "\n";
                     out<< "    /*! @fn "<<line.trimmed()<<"\n";
                     add_funtion_brief(out);
-                    get_parameter(line.trimmed(), out);
+                    add_parameter(line.trimmed(), out);
                     out<< "     * @return "<<get_return_type(line.trimmed())<<"\n";
                     out<< "     */"<<"\n";
                     out << line << "\n";
@@ -188,9 +189,14 @@ QString AutoHeader::get_return_type(const QString &line)
     return final_return_string.trimmed();
 }
 
-void AutoHeader::get_parameter(const QString &line, QTextStream& out)
+void AutoHeader::add_parameter(const QString &line, QTextStream& out)
 {
     QStringList multiple_parameter_list = line.split("(");
+    QString function_name_with_return = multiple_parameter_list.at(0);
+    QStringList function_name_list = function_name_with_return.split(" ");
+    QString function_name = function_name_list.at(function_name_list.size() - 1);
+
+
     QString final_parameter = multiple_parameter_list.at(1);
     multiple_parameter_list.clear();
     multiple_parameter_list = final_parameter.split(")");
@@ -214,7 +220,7 @@ void AutoHeader::get_parameter(const QString &line, QTextStream& out)
         {
             final_parameter = parameter_type_list.at(parameter_type_list.size() - 1);
             final_parameter.remove("*").remove("&");
-            QString input_output = get_input_output_parameter(parameter);
+            QString input_output = get_input_output_parameter(parameter, function_name);
             out<< "     * @param "<<input_output<< final_parameter<<"\n";
         }
         else {
@@ -223,7 +229,7 @@ void AutoHeader::get_parameter(const QString &line, QTextStream& out)
             before_equal = before_equal.trimmed();
             QStringList parameter_type_list_2 = before_equal.split(" ");
             final_parameter = parameter_type_list_2.at(parameter_type_list_2.size() - 1);
-            QString input_output = get_input_output_parameter(before_equal);
+            final_parameter.remove("*").remove("&");
             out<< "     * @param "<<input_output<< final_parameter<<"\n";
         }
     }
@@ -253,39 +259,51 @@ void AutoHeader::add_funtion_brief(QTextStream& out)
 
 }
 
-QString AutoHeader::get_input_output_parameter(const QString& line)
+QString AutoHeader::get_input_output_parameter(const QString& line, const QString& function_name)
 {
     if(line.contains("const"))
     {
         return "[in] ";
     }
-    if(!line.contains("&") && !line.contains("*"))
+    else if(!line.contains("&") && !line.contains("*"))
     {
         return "[in] ";
     }
     else
     {
+        if(function_name.contains("set") || function_name.contains("Set"))
+        {
+            return "[in] ";
+        }
         return "[out] ";
     }
 }
 
 void AutoHeader::OnSourceBrowseButtonClicked()
 {
-    is_source_file_selected = true;
 //    source_file_name = QFileDialog::getOpenFileName(this, tr("Select Source File"),
 //                                                    "/home/ubuntu/",
 //                                                    tr("Images (*.cpp *.h)"));
 
     source_file_directory = QFileDialog::getExistingDirectory(this, tr("Select Source File"),
                                                     "/home/ubuntu/");
-    ui->SourceDirectoryLabel->setText("Source Directory: "+source_file_directory);
+
+    if(!source_file_directory.isEmpty())
+    {
+        is_source_file_selected = true;
+        ui->SourceDirectoryLabel->setText("Source Directory: "+source_file_directory);
+    }
 }
 
 void AutoHeader::OnDestinationBrowseButtonClicked()
 {
-    is_destination_path_selected = true;
     destination_dir_name = QFileDialog::getExistingDirectory(this);
-    ui->DestinationDirectoryLabel->setText("Destination Directory: "+destination_dir_name);
+
+    if(!destination_dir_name.isEmpty())
+    {
+        ui->DestinationDirectoryLabel->setText("Destination Directory: "+destination_dir_name);
+        is_destination_path_selected = true;
+    }
 }
 
 void AutoHeader::OnAddCommetsButtonClicked()
@@ -293,7 +311,7 @@ void AutoHeader::OnAddCommetsButtonClicked()
     if(!is_source_file_selected)
     {
         QMessageBox msgBox;
-        msgBox.setText("Kindly Select Source File To Add Comments.");
+        msgBox.setText("Kindly Select Source Files Path To Add Comments.");
         msgBox.exec();
     }
     else if(!is_destination_path_selected)
@@ -316,40 +334,44 @@ void AutoHeader::OnAddCommetsButtonClicked()
 
 void AutoHeader::OnApplyCLangButtonClicked()
 {
-    QString c_lang_system_command = "find ";
-    c_lang_system_command.append(destination_dir_name).append(" -iname '*.h' -o -iname '*.cpp' | xargs clang-format-6.0 -i -style=file");
-
-    QStringList x_lang_file_path_list = source_file_directory.split("/");
-
-    QString c_lang_file_path;
-
-    for(QString path : x_lang_file_path_list)
+    if(!is_clang_file_selected)
     {
-        if(!path.isEmpty())
-        {
-            c_lang_file_path.append("/").append(path);
-
-            if(path == "Marilyn_EM1")
-            {
-                c_lang_file_path.append("/").append(".clang-format");
-                break;
-            }
-        }
-
+        QMessageBox msgBox;
+        msgBox.setText("Kindly select .clanf-format file.");
+        msgBox.exec();
     }
+    else
+    {
+        QString c_lang_system_command = "find ";
+        c_lang_system_command.append(destination_dir_name).append(" -iname '*.h' -o -iname '*.cpp' | xargs clang-format-6.0 -i -style=file");
 
-    QString copy_file_command;
-    copy_file_command.append("cp ").append(c_lang_file_path).append(" ").append(destination_dir_name);
-    system(copy_file_command.toStdString().c_str());
+        QStringList x_lang_file_path_list = source_file_directory.split("/");
 
-    QString remove_file_command;
-    remove_file_command.append("rm ").append(destination_dir_name).append("/.clang-format");
-    system(c_lang_system_command.toStdString().c_str());
-    system(remove_file_command.toStdString().c_str());
+        QString copy_file_command;
+
+        copy_file_command.append("cp ").append(clang_format_file_name).append(" ").append(destination_dir_name);
+        system(copy_file_command.toStdString().c_str());
+        QString remove_file_command;
+        remove_file_command.append("rm ").append(destination_dir_name).append("/.clang-format");
+
+        system(c_lang_system_command.toStdString().c_str());
+        system(remove_file_command.toStdString().c_str());
+    }
 }
 
 void AutoHeader::OnApplyBothButtonClicked()
 {
     OnAddCommetsButtonClicked();
     OnApplyCLangButtonClicked();
+}
+
+void AutoHeader::on_clangBrowswePushButton_released()
+{
+    clang_format_file_name = QFileDialog::getOpenFileName(this, tr("Select .clang-format File"),
+                                                    "/home/ubuntu/",
+                                                    tr("Images (.clang-format)"));
+    if(!clang_format_file_name.isEmpty())
+    {
+        is_clang_file_selected = true;
+    }
 }

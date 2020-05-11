@@ -24,12 +24,16 @@ private slots:
     void OnApplyCLangButtonClicked();
     void OnApplyBothButtonClicked();
 
+    void on_clangBrowswePushButton_released();
+
 private:
     Ui::AutoHeader *ui;
     QString source_file_directory;
     QString destination_dir_name;
+    QString clang_format_file_name;
     bool is_source_file_selected;
     bool is_destination_path_selected;
+    bool is_clang_file_selected;
     QString access_specifier;
 
     void read_source_file(const QString& file_name, QString output_file_name);
@@ -38,9 +42,9 @@ private:
     bool is_file_header_present(const QString& line);
 
     QString get_return_type(const QString& line);
-    void get_parameter(const QString& line, QTextStream& out);
+    void add_parameter(const QString& line, QTextStream& out);
     void add_funtion_brief(QTextStream& out);
-    QString get_input_output_parameter(const QString& line);
+    QString get_input_output_parameter(const QString& line, const QString& function_name);
 
 };
 
